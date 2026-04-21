@@ -1,0 +1,7 @@
+{
+  "name": "BafangAndroid",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "react-vite"
+}
