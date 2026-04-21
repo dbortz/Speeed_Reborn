@@ -1,2 +1,72 @@
-/* For information on how to create your own theme, please refer to:
-http://ionicframework.com/docs/theming/ */
+:root {
+  --ion-color-primary: #3880ff;
+  --ion-color-primary-rgb: 56,128,255;
+  --ion-color-primary-contrast: #ffffff;
+  --ion-color-primary-shade: #3171e0;
+  --ion-color-primary-tint: #4c8dff;
+  --ion-color-success: #2dd36f;
+  --ion-color-warning: #ffc409;
+  --ion-color-danger: #eb445a;
+  --ion-font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+}
+
+body.dark {
+  --ion-background-color: #121212;
+  --ion-background-color-rgb: 18,18,18;
+  --ion-text-color: #ffffff;
+  --ion-text-color-rgb: 255,255,255;
+  --ion-color-step-50: #1e1e1e;
+  --ion-color-step-100: #2a2a2a;
+  --ion-color-step-150: #363636;
+  --ion-color-step-200: #414141;
+  --ion-color-step-250: #4d4d4d;
+  --ion-color-step-300: #595959;
+  --ion-color-step-350: #656565;
+  --ion-color-step-400: #717171;
+  --ion-color-step-450: #7d7d7d;
+  --ion-color-step-500: #898989;
+  --ion-color-step-550: #949494;
+  --ion-color-step-600: #a0a0a0;
+  --ion-color-step-650: #acacac;
+  --ion-color-step-700: #b8b8b8;
+  --ion-color-step-750: #c4c4c4;
+  --ion-color-step-800: #d0d0d0;
+  --ion-color-step-850: #dbdbdb;
+  --ion-color-step-900: #e7e7e7;
+  --ion-color-step-950: #f3f3f3;
+  --ion-item-background: #1e1e1e;
+  --ion-toolbar-background: #1f1f1f;
+  --ion-tab-bar-background: #1f1f1f;
+  --ion-card-background: #1e1e1e;
+}
+
+.torque-table {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.torque-table table {
+  min-width: 600px;
+  border-collapse: collapse;
+}
+
+.torque-table th, .torque-table td {
+  padding: 6px 8px;
+  border: 1px solid var(--ion-color-step-200);
+  text-align: center;
+  font-size: 13px;
+}
+
+.torque-table th {
+  background: var(--ion-color-step-100);
+  font-weight: 600;
+}
+
+.torque-table input {
+  width: 52px;
+  background: transparent;
+  border: none;
+  color: var(--ion-text-color);
+  text-align: center;
+  font-size: 13px;
+}
