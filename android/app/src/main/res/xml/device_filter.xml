@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- CH340 (VID=6790 dec, PID=29987 dec) -->
+    <usb-device vendor-id="6790" product-id="29987" />
+    <!-- CP2102 (VID=4292 dec, PID=60000 dec) -->
+    <usb-device vendor-id="4292" product-id="60000" />
+    <!-- FTDI FT232 (VID=1027 dec, PID=24577 dec) -->
+    <usb-device vendor-id="1027" product-id="24577" />
+    <!-- PL2303 (VID=1659 dec, PID=8963 dec) -->
+    <usb-device vendor-id="1659" product-id="8963" />
+</resources>

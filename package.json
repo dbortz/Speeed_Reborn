@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@adeunis/capacitor-serial": "^1.0.6",
+    "@capacitor/android": "^8.3.1",
     "@capacitor/app": "8.1.0",
     "@capacitor/core": "8.3.1",
     "@capacitor/haptics": "8.0.2",
