@@ -66,36 +66,34 @@ export interface BafangThrottleParameters {
 }
 
 export interface TorqueSpeedProfile {
-  start_kg: number;
-  full_kg: number;
-  return_kg: number;
-  min_current_pct: number;
-  max_current_pct: number;
-  keep_current_pct: number;
-  current_decay: number;
+  start_kg: number;       // SS
+  full_kg: number;        // FS
+  return_kg: number;      // RS
+  min_current_pct: number; // MIS
+  max_current_pct: number; // MAS
+  keep_current_pct: number; // KS
+  current_decay: number;  // CS
+  star_degree: number; // SDS — confirmed from karlsspecialsauceludicrous.el save file (labelled "StarDegree" in original UI)
 }
 
-// NOTE: Byte layout approximated from Controllerst_torque.exe reverse engineering.
-// TODO: Validate all field positions by serial port capture with real motor.
+// Layout confirmed from karlsspecialsauceludicrous.el save file:
+// 23 bytes calibration + 6×8 bytes speed profiles = 71 bytes exactly.
+// No "About Tq" section in this block (those params may be read-only or separate block).
+// TODO: Validate byte order by serial port capture with real motor.
 export interface BafangTorqueParameters {
-  base_voltage: number;
-  error_voltage_min: number;
-  error_voltage_max: number;
-  delta_v_0_5kg: number;
-  delta_v_5_10kg: number;
-  delta_v_10_15kg: number;
-  delta_v_15_20kg: number;
-  delta_v_20_30kg: number;
-  delta_v_30_40kg: number;
-  delta_v_40_50kg: number;
-  delta_v_50_60kg: number;
-  boost_time_0speed: number;
-  speed_profiles: TorqueSpeedProfile[];
-  speed_signal_acc: number;
-  speed_sig_level: number;
-  level_h_time: number;
-  level_l_time: number;
-  tq_voltage: number;
+  base_voltage: number;       // BV — bytes 0-1 H+L
+  error_voltage_min: number;  // EV0 — bytes 2-3
+  error_voltage_max: number;  // EV1 — bytes 4-5
+  delta_v_0_5kg: number;      // DV0 — bytes 6-7
+  delta_v_5_10kg: number;     // DV1 — bytes 8-9
+  delta_v_10_15kg: number;    // DV2 — bytes 10-11
+  delta_v_15_20kg: number;    // DV3 — bytes 12-13
+  delta_v_20_30kg: number;    // DV4 — bytes 14-15
+  delta_v_30_40kg: number;    // DV5 — bytes 16-17
+  delta_v_40_50kg: number;    // DV6 — bytes 18-19
+  delta_v_50_60kg: number;    // DV7 — bytes 20-21
+  boost_time_0speed: number;  // SBT — byte 22
+  speed_profiles: TorqueSpeedProfile[]; // bytes 23-70, 6×8 bytes
 }
 
 export const SPEED_PROFILE_LABELS = ['Spd0', 'Spd20', 'Spd40', 'Spd60', 'Spd80', 'Spd100'] as const;
@@ -134,33 +132,28 @@ export const DEFAULT_THROTTLE: BafangThrottleParameters = {
   throttle_start_current: 10,
 };
 
+// Default values from karlsspecialsauceludicrous.el (real configuration file)
 export const DEFAULT_TORQUE: BafangTorqueParameters = {
-  base_voltage: 1000,
-  error_voltage_min: 500,
-  error_voltage_max: 4500,
-  delta_v_0_5kg: 100,
-  delta_v_5_10kg: 100,
-  delta_v_10_15kg: 100,
-  delta_v_15_20kg: 100,
-  delta_v_20_30kg: 150,
-  delta_v_30_40kg: 150,
-  delta_v_40_50kg: 200,
-  delta_v_50_60kg: 200,
-  boost_time_0speed: 100,
-  speed_profiles: Array.from({ length: 6 }, () => ({
-    start_kg: 5,
-    full_kg: 20,
-    return_kg: 3,
-    min_current_pct: 10,
-    max_current_pct: 100,
-    keep_current_pct: 30,
-    current_decay: 4,
-  })),
-  speed_signal_acc: 10,
-  speed_sig_level: 10,
-  level_h_time: 50,
-  level_l_time: 50,
-  tq_voltage: 1000,
+  base_voltage: 0,
+  error_voltage_min: 300,
+  error_voltage_max: 4300,
+  delta_v_0_5kg: 200,
+  delta_v_5_10kg: 200,
+  delta_v_10_15kg: 400,
+  delta_v_15_20kg: 400,
+  delta_v_20_30kg: 200,
+  delta_v_30_40kg: 200,
+  delta_v_40_50kg: 400,
+  delta_v_50_60kg: 400,
+  boost_time_0speed: 120,
+  speed_profiles: [
+    { start_kg: 25, full_kg: 50, return_kg: 12, min_current_pct: 2,  max_current_pct: 6,   keep_current_pct: 2, current_decay: 3, star_degree: 1 },
+    { start_kg: 16, full_kg: 45, return_kg: 9,  min_current_pct: 5,  max_current_pct: 50,  keep_current_pct: 2, current_decay: 3, star_degree: 1 },
+    { start_kg: 12, full_kg: 40, return_kg: 6,  min_current_pct: 15, max_current_pct: 100, keep_current_pct: 3, current_decay: 3, star_degree: 1 },
+    { start_kg: 10, full_kg: 35, return_kg: 5,  min_current_pct: 15, max_current_pct: 100, keep_current_pct: 2, current_decay: 2, star_degree: 1 },
+    { start_kg: 8,  full_kg: 30, return_kg: 4,  min_current_pct: 10, max_current_pct: 100, keep_current_pct: 2, current_decay: 2, star_degree: 1 },
+    { start_kg: 6,  full_kg: 25, return_kg: 4,  min_current_pct: 10, max_current_pct: 100, keep_current_pct: 2, current_decay: 2, star_degree: 1 },
+  ],
 };
 
 export interface MotorState {

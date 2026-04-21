@@ -121,7 +121,7 @@ describe('encodeTorque / parseTorque round-trip', () => {
   const makeProfile = (n: number) => ({
     start_kg: n, full_kg: n + 5, return_kg: n + 2,
     min_current_pct: 20, max_current_pct: 100, keep_current_pct: 30,
-    current_decay: 4,
+    current_decay: 4, star_degree: 1,
   });
   const params: BafangTorqueParameters = {
     base_voltage: 2500,
@@ -137,11 +137,6 @@ describe('encodeTorque / parseTorque round-trip', () => {
     delta_v_50_60kg: 700,
     boost_time_0speed: 50,
     speed_profiles: [0,1,2,3,4,5].map(makeProfile),
-    speed_signal_acc: 5,
-    speed_sig_level: 3,
-    level_h_time: 10,
-    level_l_time: 10,
-    tq_voltage: 2500,
   };
 
   it('encodes to 71 bytes', () => {
@@ -155,6 +150,6 @@ describe('encodeTorque / parseTorque round-trip', () => {
     expect(parsed.boost_time_0speed).toBe(params.boost_time_0speed);
     expect(parsed.speed_profiles[0].start_kg).toBe(params.speed_profiles[0].start_kg);
     expect(parsed.speed_profiles[5].full_kg).toBe(params.speed_profiles[5].full_kg);
-    expect(parsed.tq_voltage).toBe(params.tq_voltage);
+    expect(parsed.speed_profiles[0].star_degree).toBe(1);
   });
 });

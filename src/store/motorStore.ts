@@ -10,6 +10,14 @@ import {
 } from '../device/BafangProtocol';
 import { connect, disconnect, sendAndReceive, sendOnly } from '../device/UsbSerial';
 
+export interface AboutTqReading {
+  speed_signal_acc: number;
+  speed_sig_level: number;
+  level_h_time: number;
+  level_l_time: number;
+  tq_voltage: number;
+}
+
 interface MotorStore {
   connected: boolean;
   connecting: boolean;
@@ -20,6 +28,8 @@ interface MotorStore {
   throttle: BafangThrottleParameters | null;
   torque: BafangTorqueParameters | null;
   darkMode: boolean;
+  aboutTqReading: AboutTqReading | null;
+  continuousGetActive: boolean;
 
   connectDevice: (deviceId: number) => Promise<void>;
   disconnectDevice: () => Promise<void>;
@@ -29,6 +39,8 @@ interface MotorStore {
   readPedal: () => Promise<void>;
   readThrottle: () => Promise<void>;
   readTorque: () => Promise<void>;
+  readAboutTq: () => Promise<void>;
+  stopContinuousGet: () => void;
   writeBasic: (params: BafangBasicParameters) => Promise<void>;
   writePedal: (params: BafangPedalParameters) => Promise<void>;
   writeThrottle: (params: BafangThrottleParameters) => Promise<void>;
@@ -47,6 +59,8 @@ export const useMotorStore = create<MotorStore>((set, get) => ({
   throttle: null,
   torque: null,
   darkMode: true,
+  aboutTqReading: null,
+  continuousGetActive: false,
 
   connectDevice: async (deviceId) => {
     set({ connecting: true, error: null });
@@ -105,6 +119,26 @@ export const useMotorStore = create<MotorStore>((set, get) => ({
       set({ torque: parseTorque(data) });
     } catch (e: any) { set({ error: e.message }); }
   },
+
+  // TODO: Block code 0x57 is a PLACEHOLDER — real block code for live About Tq reading
+  // is NOT YET KNOWN. Response length (7 bytes) is also a placeholder.
+  // Must be validated by serial port capture on a real motor before relying on this feature.
+  readAboutTq: async () => {
+    try {
+      const data = await sendAndReceive(buildReadCommand(0x57), 0x57, 7);
+      set({
+        aboutTqReading: {
+          speed_signal_acc: data[0],
+          speed_sig_level:  data[1],
+          level_h_time:     data[2],
+          level_l_time:     data[3],
+          tq_voltage:       (data[4] << 8) | data[5],
+        },
+      });
+    } catch (e: any) { set({ error: e.message }); }
+  },
+
+  stopContinuousGet: () => set({ continuousGetActive: false }),
 
   writeBasic: async (params) => {
     try {

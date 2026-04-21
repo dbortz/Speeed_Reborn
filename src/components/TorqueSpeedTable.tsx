@@ -13,6 +13,7 @@ const FIELDS: { key: keyof TorqueSpeedProfile; label: string }[] = [
   { key: 'max_current_pct', label: 'MaxCur%' },
   { key: 'keep_current_pct', label: 'KeepCur%' },
   { key: 'current_decay', label: 'CurDecay' },
+  { key: 'star_degree', label: 'StarDeg' },
 ];
 
 const TorqueSpeedTable: React.FC<Props> = ({ profiles, onChange }) => {

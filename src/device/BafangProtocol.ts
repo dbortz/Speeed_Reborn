@@ -139,34 +139,31 @@ export function encodeThrottle(p: BafangThrottleParameters): number[] {
 function hl(hi: number, lo: number): number { return (hi << 8) | lo; }
 
 export function parseTorque(data: number[]): BafangTorqueParameters {
+  // Layout confirmed from karlsspecialsauceludicrous.el: 23 bytes + 6×8 bytes = 71 bytes
   const profile = (offset: number): TorqueSpeedProfile => ({
-    start_kg: data[offset],
-    full_kg: data[offset + 1],
-    return_kg: data[offset + 2],
+    start_kg:        data[offset],
+    full_kg:         data[offset + 1],
+    return_kg:       data[offset + 2],
     min_current_pct: data[offset + 3],
     max_current_pct: data[offset + 4],
     keep_current_pct: data[offset + 5],
-    current_decay: data[offset + 6],
+    current_decay:   data[offset + 6],
+    star_degree: data[offset + 7],
   });
   return {
-    base_voltage: hl(data[0], data[1]),
+    base_voltage:      hl(data[0], data[1]),
     error_voltage_min: hl(data[2], data[3]),
     error_voltage_max: hl(data[4], data[5]),
-    delta_v_0_5kg: hl(data[6], data[7]),
-    delta_v_5_10kg: hl(data[8], data[9]),
-    delta_v_10_15kg: hl(data[10], data[11]),
-    delta_v_15_20kg: hl(data[12], data[13]),
-    delta_v_20_30kg: hl(data[14], data[15]),
-    delta_v_30_40kg: hl(data[16], data[17]),
-    delta_v_40_50kg: hl(data[18], data[19]),
-    delta_v_50_60kg: hl(data[20], data[21]),
+    delta_v_0_5kg:     hl(data[6], data[7]),
+    delta_v_5_10kg:    hl(data[8], data[9]),
+    delta_v_10_15kg:   hl(data[10], data[11]),
+    delta_v_15_20kg:   hl(data[12], data[13]),
+    delta_v_20_30kg:   hl(data[14], data[15]),
+    delta_v_30_40kg:   hl(data[16], data[17]),
+    delta_v_40_50kg:   hl(data[18], data[19]),
+    delta_v_50_60kg:   hl(data[20], data[21]),
     boost_time_0speed: data[22],
-    speed_profiles: [0, 1, 2, 3, 4, 5].map((i) => profile(23 + i * 7)),
-    speed_signal_acc: data[65],
-    speed_sig_level: data[66],
-    level_h_time: data[67],
-    level_l_time: data[68],
-    tq_voltage: hl(data[69], data[70]),
+    speed_profiles: [0, 1, 2, 3, 4, 5].map((i) => profile(23 + i * 8)),
   };
 }
 
@@ -186,19 +183,15 @@ export function encodeTorque(p: BafangTorqueParameters): number[] {
   setHL(20, p.delta_v_50_60kg);
   out[22] = p.boost_time_0speed;
   p.speed_profiles.forEach((sp, i) => {
-    const base = 23 + i * 7;
-    out[base] = sp.start_kg;
+    const base = 23 + i * 8;
+    out[base]     = sp.start_kg;
     out[base + 1] = sp.full_kg;
     out[base + 2] = sp.return_kg;
     out[base + 3] = sp.min_current_pct;
     out[base + 4] = sp.max_current_pct;
     out[base + 5] = sp.keep_current_pct;
     out[base + 6] = sp.current_decay;
+    out[base + 7] = sp.star_degree;
   });
-  out[65] = p.speed_signal_acc;
-  out[66] = p.speed_sig_level;
-  out[67] = p.level_h_time;
-  out[68] = p.level_l_time;
-  setHL(69, p.tq_voltage);
   return out;
 }
