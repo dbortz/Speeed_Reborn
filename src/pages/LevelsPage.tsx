@@ -99,7 +99,7 @@ const LevelsPage: React.FC = () => {
                       maxWidth: '80px',
                       '--background': 'transparent',
                     }}
-                    onIonChange={(e) => updateProfile(i, 'current_limit', Number(e.detail.value))}
+                    onIonChange={(e) => { const n = Number(e.detail.value); if (e.detail.value !== '' && e.detail.value !== null && !isNaN(n)) updateProfile(i, 'current_limit', n); }}
                   />
                 )}
                 {!showAmps && (
@@ -119,7 +119,7 @@ const LevelsPage: React.FC = () => {
                     maxWidth: '70px',
                     '--background': 'transparent',
                   }}
-                  onIonChange={(e) => updateProfile(i, 'speed_limit', Number(e.detail.value))}
+                  onIonChange={(e) => { const n = Number(e.detail.value); if (e.detail.value !== '' && e.detail.value !== null && !isNaN(n)) updateProfile(i, 'speed_limit', n); }}
                 />
                 <span style={{ color: 'var(--bafang-text-muted)', fontSize: '12px' }}>%</span>
               </div>

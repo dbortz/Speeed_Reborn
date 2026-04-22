@@ -23,10 +23,10 @@ const HomePage: React.FC = () => {
   const {
     connected, connecting, error,
     connectDevice, disconnectDevice,
-    info, readInfo,
+    info,
     basic, pedal, throttle, torque,
     loadFromFile,
-    readBasic, readPedal, readThrottle, readTorque,
+    readAll,
     writeBasic, writePedal, writeThrottle, writeTorque,
   } = useMotorStore();
 
@@ -41,21 +41,19 @@ const HomePage: React.FC = () => {
 
   useEffect(() => { refreshDevices(); }, []);
 
+  const [writing, setWriting] = useState(false);
   const canConnect = selectedId !== null && lawAgreed && liabilityAgreed && !connected;
 
-  const handleReadAll = () => {
-    readInfo();
-    readBasic();
-    readPedal();
-    readThrottle();
-    readTorque();
-  };
-
   const handleWriteAll = async () => {
-    if (basic) await writeBasic(basic);
-    if (pedal) await writePedal(pedal);
-    if (throttle) await writeThrottle(throttle);
-    if (torque) await writeTorque(torque);
+    setWriting(true);
+    try {
+      if (basic) await writeBasic(basic);
+      if (pedal) await writePedal(pedal);
+      if (throttle) await writeThrottle(throttle);
+      if (torque) await writeTorque(torque);
+    } finally {
+      setWriting(false);
+    }
   };
 
   const handleLoad = () => fileInputRef.current?.click();
@@ -79,7 +77,9 @@ const HomePage: React.FC = () => {
     const a = document.createElement('a');
     a.href = url;
     a.download = 'bafang-settings.el';
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
 
@@ -191,8 +191,8 @@ const HomePage: React.FC = () => {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 16px 0' }}>
           <div className="section-label" style={{ padding: '8px 0 4px' }}>Motor</div>
           <div style={{ display: 'flex', gap: '8px' }}>
-            <button className="btn-read" disabled={!connected} onClick={handleReadAll}>READ ALL</button>
-            <button className="btn-write" disabled={!connected} onClick={handleWriteAll}>WRITE ALL</button>
+            <button className="btn-read" disabled={!connected} onClick={readAll}>READ ALL</button>
+            <button className="btn-write" disabled={!connected || writing} onClick={handleWriteAll}>{writing ? '···' : 'WRITE ALL'}</button>
           </div>
         </div>
 
