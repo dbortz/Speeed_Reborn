@@ -1,45 +1,206 @@
-:root {
-  --ion-color-primary: #3880ff;
-  --ion-color-primary-rgb: 56,128,255;
-  --ion-color-primary-contrast: #ffffff;
-  --ion-color-primary-shade: #3171e0;
-  --ion-color-primary-tint: #4c8dff;
-  --ion-color-success: #2dd36f;
-  --ion-color-warning: #ffc409;
-  --ion-color-danger: #eb445a;
-  --ion-font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
-}
+/* src/theme/variables.css */
 
+/* ============================================================
+   Toujours sombre — pas de toggle light/dark
+   ============================================================ */
+:root,
+body,
 body.dark {
-  --ion-background-color: #121212;
-  --ion-background-color-rgb: 18,18,18;
+  /* Ionic overrides */
+  --ion-background-color: #000000;
+  --ion-background-color-rgb: 0, 0, 0;
   --ion-text-color: #ffffff;
-  --ion-text-color-rgb: 255,255,255;
-  --ion-color-step-50: #1e1e1e;
-  --ion-color-step-100: #2a2a2a;
-  --ion-color-step-150: #363636;
-  --ion-color-step-200: #414141;
-  --ion-color-step-250: #4d4d4d;
-  --ion-color-step-300: #595959;
-  --ion-color-step-350: #656565;
-  --ion-color-step-400: #717171;
-  --ion-color-step-450: #7d7d7d;
-  --ion-color-step-500: #898989;
-  --ion-color-step-550: #949494;
-  --ion-color-step-600: #a0a0a0;
-  --ion-color-step-650: #acacac;
-  --ion-color-step-700: #b8b8b8;
-  --ion-color-step-750: #c4c4c4;
-  --ion-color-step-800: #d0d0d0;
-  --ion-color-step-850: #dbdbdb;
-  --ion-color-step-900: #e7e7e7;
-  --ion-color-step-950: #f3f3f3;
-  --ion-item-background: #1e1e1e;
-  --ion-toolbar-background: #1f1f1f;
-  --ion-tab-bar-background: #1f1f1f;
-  --ion-card-background: #1e1e1e;
+  --ion-text-color-rgb: 255, 255, 255;
+  --ion-color-primary: #3a7bd5;
+  --ion-color-primary-rgb: 58, 123, 213;
+  --ion-color-primary-contrast: #ffffff;
+  --ion-color-primary-shade: #3371c4;
+  --ion-color-primary-tint: #4e8ada;
+  --ion-color-success: #27ae60;
+  --ion-color-danger: #e74c3c;
+  --ion-color-warning: #f39c12;
+  --ion-item-background: transparent;
+  --ion-toolbar-background: #000000;
+  --ion-toolbar-border-color: #1e1e1e;
+  --ion-tab-bar-background: #0d0d0d;
+  --ion-tab-bar-border-color: #1e1e1e;
+  --ion-card-background: #111111;
+  --ion-color-step-50: #0d0d0d;
+  --ion-color-step-100: #1a1a1a;
+  --ion-color-step-150: #262626;
+  --ion-color-step-200: #333333;
+  --ion-color-step-600: #999999;
+  --ion-color-step-850: #d9d9d9;
+  --ion-font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+
+  /* Custom design tokens */
+  --bafang-accent: #3a7bd5;
+  --bafang-green: #27ae60;
+  --bafang-red: #e74c3c;
+  --bafang-danger-bg: #c0392b;
+  --bafang-bg: #000000;
+  --bafang-surface: #0d0d0d;
+  --bafang-surface-2: #111111;
+  --bafang-border: #1e1e1e;
+  --bafang-text: #ffffff;
+  --bafang-text-muted: #aaaaaa;
+  --bafang-text-dim: #555555;
 }
 
+/* ============================================================
+   Inner tabs (Settings sub-navigation)
+   ============================================================ */
+.inner-tabs {
+  display: flex;
+  background: var(--bafang-surface);
+  border-bottom: 1px solid var(--bafang-border);
+}
+
+.inner-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 2px 7px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  gap: 3px;
+}
+
+.inner-tab ion-icon {
+  font-size: 18px;
+  color: var(--bafang-text-dim);
+}
+
+.inner-tab .inner-tab-label {
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--bafang-text-dim);
+  text-transform: uppercase;
+}
+
+.inner-tab.active {
+  border-bottom: 2px solid var(--bafang-accent);
+}
+
+.inner-tab.active ion-icon {
+  color: var(--bafang-accent);
+}
+
+.inner-tab.active .inner-tab-label {
+  color: var(--bafang-accent);
+}
+
+/* ============================================================
+   READ / WRITE bar
+   ============================================================ */
+.rw-bar {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  gap: 8px;
+  border-bottom: 1px solid var(--bafang-border);
+  background: var(--bafang-bg);
+}
+
+.btn-read {
+  border: 1.5px solid var(--bafang-green);
+  border-radius: 4px;
+  padding: 6px 14px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--bafang-green);
+  background: transparent;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+}
+
+.btn-read:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.btn-write {
+  border: 1.5px solid var(--bafang-red);
+  border-radius: 4px;
+  padding: 6px 14px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--bafang-red);
+  background: transparent;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+}
+
+.btn-write:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.rw-title {
+  flex: 1;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--bafang-text);
+}
+
+/* ============================================================
+   Sections Home
+   ============================================================ */
+.section-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--bafang-text);
+  padding: 12px 16px 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.connect-btn-full {
+  margin: 4px 16px 12px;
+  background: var(--bafang-accent);
+  border: none;
+  border-radius: 6px;
+  padding: 14px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: #fff;
+  width: calc(100% - 32px);
+  cursor: pointer;
+  text-transform: uppercase;
+}
+
+.connect-btn-full.danger {
+  background: var(--bafang-danger-bg);
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.status-badge.disconnected {
+  background: var(--bafang-danger-bg);
+  color: #fff;
+}
+
+.status-badge.connected {
+  background: var(--bafang-green);
+  color: #fff;
+}
+
+/* ============================================================
+   Torque table (keep functional but dark-styled)
+   ============================================================ */
 .torque-table {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -50,23 +211,53 @@ body.dark {
   border-collapse: collapse;
 }
 
-.torque-table th, .torque-table td {
+.torque-table th,
+.torque-table td {
   padding: 6px 8px;
-  border: 1px solid var(--ion-color-step-200);
+  border: 1px solid var(--bafang-border);
   text-align: center;
   font-size: 13px;
+  color: var(--bafang-text);
 }
 
 .torque-table th {
-  background: var(--ion-color-step-100);
+  background: var(--bafang-surface);
   font-weight: 600;
+  color: var(--bafang-text-muted);
 }
 
 .torque-table input {
   width: 52px;
   background: transparent;
   border: none;
-  color: var(--ion-text-color);
+  color: var(--bafang-text);
   text-align: center;
   font-size: 13px;
 }
+
+/* ============================================================
+   Levels table
+   ============================================================ */
+.levels-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--bafang-border);
+  font-size: 12px;
+  color: var(--bafang-text-muted);
+}
+
+.levels-table-header {
+  display: flex;
+  padding: 6px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--bafang-text-dim);
+  border-bottom: 1px solid var(--bafang-border);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.levels-table-header .col-lvl { width: 48px; }
+.levels-table-header .col-val { flex: 1; text-align: right; }
