@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import {
   BafangMotorInfo, BafangBasicParameters, BafangPedalParameters,
   BafangThrottleParameters, BafangTorqueParameters,
+  DEFAULT_BASIC, DEFAULT_PEDAL, DEFAULT_THROTTLE, DEFAULT_TORQUE,
 } from '../types/BafangTypes';
 import {
   buildReadCommand, buildWriteCommand,
@@ -9,6 +10,7 @@ import {
   encodeBasic, encodePedal, encodeThrottle, encodeTorque,
 } from '../device/BafangProtocol';
 import { connect, disconnect, sendAndReceive, sendOnly } from '../device/UsbSerial';
+import { ElFileData } from '../device/ElFileParser';
 
 export interface AboutTqReading {
   speed_signal_acc: number;
@@ -45,6 +47,7 @@ interface MotorStore {
   writePedal: (params: BafangPedalParameters) => Promise<void>;
   writeThrottle: (params: BafangThrottleParameters) => Promise<void>;
   writeTorque: (params: BafangTorqueParameters) => Promise<void>;
+  loadFromFile: (data: ElFileData) => void;
   setDarkMode: (dark: boolean) => void;
   setError: (msg: string | null) => void;
 }
@@ -170,6 +173,16 @@ export const useMotorStore = create<MotorStore>((set, get) => ({
       await sendOnly(cmd);
       set({ torque: params });
     } catch (e: any) { set({ error: e.message }); }
+  },
+
+  loadFromFile: (data) => {
+    const s = get();
+    const updates: any = {};
+    if (data.basic)    updates.basic    = { ...(s.basic    ?? DEFAULT_BASIC),    ...data.basic };
+    if (data.pedal)    updates.pedal    = { ...(s.pedal    ?? DEFAULT_PEDAL),    ...data.pedal };
+    if (data.throttle) updates.throttle = { ...(s.throttle ?? DEFAULT_THROTTLE), ...data.throttle };
+    if (data.torque)   updates.torque   = { ...(s.torque   ?? DEFAULT_TORQUE),   ...data.torque };
+    set(updates);
   },
 
   setDarkMode: (dark) => set({ darkMode: dark }),
