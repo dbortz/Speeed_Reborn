@@ -29,7 +29,7 @@ const SettingsInnerTabs: React.FC<Props> = ({ active }) => {
         <button
           key={tab.id}
           className={`inner-tab${active === tab.id ? ' active' : ''}`}
-          onClick={() => history.push(`/settings/${tab.id}`)}
+          onClick={() => history.replace(`/settings/${tab.id}`)}
         >
           <IonIcon icon={tab.icon} />
           <span className="inner-tab-label">{tab.label}</span>
