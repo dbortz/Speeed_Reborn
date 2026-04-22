@@ -140,6 +140,14 @@ body.dark {
   cursor: default;
 }
 
+.btn-read:not(:disabled):active {
+  background: rgba(39, 174, 96, 0.12);
+}
+
+.btn-write:not(:disabled):active {
+  background: rgba(231, 76, 60, 0.12);
+}
+
 .rw-title {
   flex: 1;
   text-align: center;
