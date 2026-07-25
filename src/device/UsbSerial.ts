@@ -122,13 +122,34 @@ export async function connect(
     await disconnect();
   }
 
-  // Request USB OTG permission (shows Android dialog if not yet granted)
-  const permParams =
-    vendorId !== undefined && productId !== undefined
-      ? { vendorId, productId, driver: 'CdcAcmSerialDriver' as any }
-      : undefined;
-
-  const { granted } = await Serial.requestSerialPermissions(permParams);
+  // Request USB OTG permission (shows Android dialog if not yet granted).
+  // Try the default prober first (covers CH340/FTDI/CP21xx/CDC-ACM); if the
+  // device is not matched, retry probing explicitly as a CH340 — the chip on
+  // the Bafang programming cable (clones sometimes carry unusual product
+  // ids the default table misses).
+  let granted: boolean;
+  if (vendorId !== undefined && productId !== undefined) {
+    ({ granted } = await Serial.requestSerialPermissions({
+      vendorId,
+      productId,
+      driver: 'CdcAcmSerialDriver' as any,
+    }));
+  } else {
+    try {
+      ({ granted } = await Serial.requestSerialPermissions());
+    } catch (e: any) {
+      if (String(e?.message ?? e).includes('NO_DEVICE_ERROR')) {
+        // Explicit CH340 probe (VID 0x1a86, PID 0x7523)
+        ({ granted } = await Serial.requestSerialPermissions({
+          vendorId: 0x1a86,
+          productId: 0x7523,
+          driver: 'Ch34xSerialDriver' as any,
+        }));
+      } else {
+        throw e;
+      }
+    }
+  }
   if (!granted) {
     throw new Error('USB serial permission denied by user');
   }
