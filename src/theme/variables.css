@@ -54,6 +54,9 @@ body.dark {
   display: flex;
   background: var(--bafang-surface);
   border-bottom: 1px solid var(--bafang-border);
+  /* Android 15 edge-to-edge: keep the tab strip below the status bar.
+     Ionic only auto-pads IonToolbar, not custom headers like this one. */
+  padding-top: var(--ion-safe-area-top, 0px);
 }
 
 .inner-tab {
