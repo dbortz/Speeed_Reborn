@@ -6,20 +6,18 @@ import {
   IonSelectOption, IonInput, useIonAlert,
 } from '@ionic/react';
 import {
-  folderOpenOutline, downloadOutline, refreshOutline,
+  folderOpenOutline, downloadOutline,
   saveOutline, arrowUpCircleOutline, trashOutline,
 } from 'ionicons/icons';
 import { useState, useEffect, useRef } from 'react';
 import { useMotorStore } from '../store/motorStore';
 import { useProfileStore } from '../store/profileStore';
-import { listDevices, UsbDevice } from '../device/UsbSerial';
 import { parseElFile, serializeAllToEl } from '../device/ElFileParser';
 
 const HomePage: React.FC = () => {
-  const [devices, setDevices] = useState<UsbDevice[]>([]);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [lawAgreed, setLawAgreed] = useState(false);
-  const [liabilityAgreed, setLiabilityAgreed] = useState(false);
+  // Confirmations default to checked — the user can still opt out
+  const [lawAgreed, setLawAgreed] = useState(true);
+  const [liabilityAgreed, setLiabilityAgreed] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
@@ -104,19 +102,11 @@ const HomePage: React.FC = () => {
     });
   };
 
-  const refreshDevices = async () => {
-    try {
-      const list = await listDevices();
-      setDevices(list);
-    } catch {
-      setDevices([]);
-    }
-  };
-
-  useEffect(() => { refreshDevices(); }, []);
-
   const [writing, setWriting] = useState(false);
-  const canConnect = selectedId !== null && lawAgreed && liabilityAgreed && !connected;
+  // The serial plugin cannot enumerate devices — Android shows its own USB
+  // permission dialog when connecting, so CONNECT is gated only on the
+  // confirmations.
+  const canConnect = lawAgreed && liabilityAgreed && !connected;
 
   const handleWriteAll = async () => {
     setWriting(true);
@@ -181,9 +171,6 @@ const HomePage: React.FC = () => {
             <IonButton onClick={handleSave}>
               <IonIcon slot="icon-only" icon={downloadOutline} />
             </IonButton>
-            <IonButton onClick={refreshDevices}>
-              <IonIcon slot="icon-only" icon={refreshOutline} />
-            </IonButton>
           </IonButtons>
         </IonToolbar>
       </IonHeader>
@@ -203,32 +190,11 @@ const HomePage: React.FC = () => {
         {/* Connection section */}
         <div className="section-label">Connection</div>
 
-        {!connected && devices.length === 0 && (
+        {!connected && (
           <p style={{ padding: '4px 16px 8px', fontSize: '13px', color: 'var(--bafang-text-muted)' }}>
-            No USB device found. Connect adapter via OTG and tap ↻
+            Plug the programming cable in via OTG, then tap CONNECT — Android
+            will ask for USB permission.
           </p>
-        )}
-
-        {!connected && devices.length > 0 && (
-          <IonItem
-            lines="full"
-            style={{ '--background': 'transparent', '--border-color': 'var(--bafang-border)' }}
-          >
-            <IonLabel style={{ color: 'var(--bafang-text-muted)' }}>USB Device</IonLabel>
-            <IonSelect
-              slot="end"
-              value={selectedId}
-              placeholder="Select"
-              onIonChange={(e) => setSelectedId(e.detail.value)}
-              style={{ color: 'var(--bafang-text)' }}
-            >
-              {devices.map((d) => (
-                <IonSelectOption key={d.deviceId} value={d.deviceId}>
-                  {d.deviceName}
-                </IonSelectOption>
-              ))}
-            </IonSelect>
-          </IonItem>
         )}
 
         {!connected && (
@@ -261,7 +227,7 @@ const HomePage: React.FC = () => {
         <button
           className={`connect-btn-full${connected ? ' danger' : ''}`}
           disabled={connected ? false : (!canConnect || connecting)}
-          onClick={() => connected ? disconnectDevice() : selectedId !== null && connectDevice(selectedId)}
+          onClick={() => (connected ? disconnectDevice() : connectDevice(0))}
         >
           {connecting ? '···' : connected ? 'DISCONNECT' : 'CONNECT'}
         </button>
