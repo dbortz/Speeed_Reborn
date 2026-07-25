@@ -1,145 +1,250 @@
+/**
+ * BBS01/02/HD UART protocol — byte layouts and checksums VERIFIED against a
+ * real BBS02B (HZXT SZZ9, fw 2.0.1.1) by raw serial capture on 2026-07-25.
+ * See tests/BafangProtocol.test.ts for the captured fixtures.
+ *
+ * Frames:
+ *   read request   [0x11] [block]           (info block is the special
+ *                                            sequence 11 51 04 B0 05)
+ *   write request  [0x16] [block] [len] [data...] [checksum]
+ *                  checksum = (block + len + sum(data)) & 0xff
+ *   read response  [block] [len] [data...] [checksum]
+ *                  checksum = (block + 2 + sum(data)) & 0xff on this
+ *                  controller; other firmwares reportedly use
+ *                  (block + len + sum(data)) & 0xff — both are accepted
+ *   write ack      [block] [len] [(block + len) & 0xff]
+ *
+ * There is NO leading 0x06 on responses (the original implementation of this
+ * app assumed one and therefore never parsed a single frame).
+ */
 import {
   BafangBasicParameters, BafangMotorInfo, BafangPedalParameters,
   BafangThrottleParameters, BafangTorqueParameters,
   SpeedmeterType, PedalType, ThrottleMode, TorqueSpeedProfile,
+  VOLTAGE_TABLE,
 } from '../types/BafangTypes';
 
-export function calcChecksum(data: number[]): number {
-  return data.reduce((xor, b) => xor ^ b, 0);
-}
+export const BLOCK_INFO = 0x51;
+export const BLOCK_BASIC = 0x52;
+export const BLOCK_PEDAL = 0x53;
+export const BLOCK_THROTTLE = 0x54;
+export const BLOCK_TORQUE_READ = 0x55;
+export const BLOCK_TORQUE_WRITE = 0x56;
+
+export const DATA_LENGTHS: { [block: number]: number } = {
+  [BLOCK_INFO]: 16,
+  [BLOCK_BASIC]: 24,
+  [BLOCK_PEDAL]: 11,
+  [BLOCK_THROTTLE]: 6,
+  [BLOCK_TORQUE_READ]: 71,
+};
 
 export function buildReadCommand(blockCode: number): Uint8Array {
-  return new Uint8Array([0x11, blockCode, 0x00]);
+  if (blockCode === BLOCK_INFO) {
+    return new Uint8Array([0x11, 0x51, 0x04, 0xb0, 0x05]);
+  }
+  return new Uint8Array([0x11, blockCode]);
 }
 
+/** Write checksum = (block + len + sum(data)) & 0xff — verified accepted */
 export function buildWriteCommand(blockCode: number, data: number[]): Uint8Array {
-  const checksum = calcChecksum(data);
-  return new Uint8Array([0x16, blockCode, data.length, ...data, checksum]);
+  let sum = blockCode + data.length;
+  data.forEach((b) => { sum += b; });
+  return new Uint8Array([0x16, blockCode, data.length, ...data, sum & 0xff]);
 }
+
+/** Both response-checksum dialects observed in the wild */
+export function isValidResponseChecksum(
+  blockCode: number,
+  length: number,
+  data: number[],
+  checksum: number
+): boolean {
+  let payloadSum = 0;
+  data.forEach((b) => { payloadSum += b; });
+  const withTwo = (blockCode + 2 + payloadSum) & 0xff;   // BBS02B fw 2.0.1.1
+  const withLen = (blockCode + length + payloadSum) & 0xff;
+  return checksum === withTwo || checksum === withLen;
+}
+
+/** The 3-byte ack a controller returns after accepting a write */
+export function expectedWriteAck(blockCode: number, dataLength: number): number[] {
+  return [blockCode, dataLength, (blockCode + dataLength) & 0xff];
+}
+
+export interface ExtractedFrame {
+  data: number[];
+  /** total bytes consumed from the start of the buffer */
+  consumed: number;
+}
+
+/**
+ * Scan an accumulating receive buffer for a complete, checksum-valid response
+ * frame for `blockCode` with `dataLength` payload bytes. Leading garbage is
+ * skipped. Returns null while the frame is still incomplete/absent.
+ * Pure function — testable without hardware.
+ */
+export function extractResponseFrame(
+  buffer: number[],
+  blockCode: number,
+  dataLength: number
+): ExtractedFrame | null {
+  const frameSize = 2 + dataLength + 1;
+  for (let start = 0; start + 2 <= buffer.length; start++) {
+    if (buffer[start] !== blockCode || buffer[start + 1] !== dataLength) continue;
+    if (start + frameSize > buffer.length) return null; // incomplete — wait
+    const data = buffer.slice(start + 2, start + 2 + dataLength);
+    const checksum = buffer[start + frameSize - 1];
+    if (isValidResponseChecksum(blockCode, dataLength, data, checksum)) {
+      return { data, consumed: start + frameSize };
+    }
+  }
+  return null;
+}
+
+/** Same idea for the 3-byte write ack */
+export function extractWriteAck(
+  buffer: number[],
+  blockCode: number,
+  dataLength: number
+): ExtractedFrame | null {
+  const ack = expectedWriteAck(blockCode, dataLength);
+  for (let start = 0; start + 3 <= buffer.length; start++) {
+    if (
+      buffer[start] === ack[0] &&
+      buffer[start + 1] === ack[1] &&
+      buffer[start + 2] === ack[2]
+    ) {
+      return { data: [], consumed: start + 3 };
+    }
+  }
+  return null;
+}
+
+// ─── Info (0x51, 16 bytes) ───────────────────────────────────────────────────
+// [0-3] manufacturer ASCII, [4-7] model ASCII, [8] hw major char,
+// [9] hw minor char, [10-13] fw version chars, [14] voltage table index,
+// [15] max current (A)
 
 export function parseInfo(data: number[]): BafangMotorInfo {
-  const txt = (start: number, len: number) =>
+  const chars = (start: number, len: number) =>
     String.fromCharCode(...data.slice(start, start + len)).replace(/\0/g, '').trim();
   return {
-    serial_number: txt(0, 16),
-    model: txt(16, 4),
-    manufacturer: txt(20, 4),
-    system_code: txt(24, 4),
-    firmware_version: txt(28, 2),
-    hardware_version: txt(30, 2),
-    voltage: String(data[32]),
-    max_current: String(data[33]),
+    serial_number: '',
+    manufacturer: chars(0, 4),
+    model: chars(4, 4),
+    system_code: '',
+    hardware_version: `${String.fromCharCode(data[8])}.${String.fromCharCode(data[9])}`,
+    firmware_version: data
+      .slice(10, 14)
+      .map((c) => String.fromCharCode(c))
+      .join('.'),
+    voltage: VOLTAGE_TABLE[data[14]] ?? 0,
+    max_current: data[15],
   };
 }
 
-// Basic parameter byte layout (24 bytes total):
-// [0]       low_battery_protection
-// [1]       current_limit
-// [2]       assist_levels
-// [3..12]   speed_limit[0..9]   (one byte each)
-// [13..22]  current_limit[0..9] (one byte each)
-// [23]      speedmeter byte: bits[1:0]=type, bits[7:2]=magnets (wheel_diameter
-//           stored separately in the same byte via upper nibble of magnets field
-//           or retrieved from a separate byte — here we pack wheel_diameter into
-//           bits[7:2] as (wheel_diameter & 0x3f) and magnets is kept to 0..3)
-// Simplified: byte 23 = speedmeter_type(2b) | speedmeter_magnets(4b<<2) | 0
-// wheel_diameter stored at a dedicated byte — but 24 bytes are all used above.
-// Resolution: wheel_diameter shares byte 23 upper bits; magnets is 0..3 only.
-// Actual layout chosen to avoid collision: 10 speeds (3-12), 10 currents (13-22),
-// byte 23 packs speedmeter_type(2b)|speedmeter_magnets(3b<<2)|wheel_diam_hi(3b<<5)
-// For simplicity and test compatibility, wheel_diameter is packed as a full 8-bit
-// value by using a separate virtual 25th byte — but since array is 24 bytes, we
-// instead store wheel_diameter in byte 22 and limit profiles to 9 entries (0-8),
-// with profile[9] placed at bytes 3+9 and 13+9.
+// ─── Basic (0x52, 24 bytes) ──────────────────────────────────────────────────
+// [0] low battery protection (V), [1] current limit (A),
+// [2-11] per-level current %, [12-21] per-level speed %,
+// [22] wheel diameter * 2, [23] (speedmeter_type << 6) | magnets
 
 export function parseBasic(data: number[]): BafangBasicParameters {
-  // Layout: speeds at bytes 3-12, currents at bytes 13-22, speedmeter at byte 23
-  const profiles = Array.from({ length: 10 }, (_, i) => ({
-    speed_limit: data[3 + i],
-    current_limit: data[13 + i],
-  }));
-  const spdByte = data[23] ?? 0;
   return {
     low_battery_protection: data[0],
     current_limit: data[1],
-    assist_levels: data[2],
-    wheel_diameter: (spdByte >> 2) & 0x3f,
-    speedmeter_type: (spdByte & 0x03) as SpeedmeterType,
-    speedmeter_magnets: 1,
-    assist_profiles: profiles,
+    assist_profiles: Array.from({ length: 10 }, (_, i) => ({
+      current_limit: data[2 + i],
+      speed_limit: data[12 + i],
+    })),
+    wheel_diameter: data[22] / 2,
+    speedmeter_type: ((data[23] & 0b11000000) >> 6) as SpeedmeterType,
+    speedmeter_magnets: data[23] & 0b111111,
   };
 }
 
 export function encodeBasic(p: BafangBasicParameters): number[] {
-  const out: number[] = new Array(24).fill(0);
-  out[0] = p.low_battery_protection;
-  out[1] = p.current_limit;
-  out[2] = p.assist_levels;
-  for (let i = 0; i < 10; i++) {
-    out[3 + i] = p.assist_profiles[i]?.speed_limit ?? 0;
-    out[13 + i] = p.assist_profiles[i]?.current_limit ?? 0;
-  }
-  // byte 23: bits[1:0]=speedmeter_type, bits[7:2]=wheel_diameter
-  out[23] = (p.speedmeter_type & 0x03) | ((p.wheel_diameter & 0x3f) << 2);
-  return out;
+  return [
+    p.low_battery_protection,
+    p.current_limit,
+    ...p.assist_profiles.map((a) => a.current_limit),
+    ...p.assist_profiles.map((a) => a.speed_limit),
+    Math.round(p.wheel_diameter * 2),
+    ((p.speedmeter_type & 0b11) << 6) | (p.speedmeter_magnets & 0b111111),
+  ];
 }
+
+// ─── Pedal (0x53, 11 bytes) ──────────────────────────────────────────────────
+// [0] type, [1] designated assist level, [2] speed limit, [3] start current %,
+// [4] slow start mode, [5] signals before start, [6] work mode (raw,
+// preserved), [7] time to stop / 10ms, [8] current decay, [9] stop decay /
+// 10ms, [10] keep current %
 
 export function parsePedal(data: number[]): BafangPedalParameters {
   return {
     pedal_type: data[0] as PedalType,
-    pedal_speed_limit: data[1],
-    pedal_start_current: data[2],
-    pedal_slow_start_mode: data[3],
-    pedal_signals_before_start: data[4],
-    pedal_time_to_stop: (data[5] << 8) | data[6],
-    pedal_current_decay: data[7],
-    pedal_stop_decay: data[8],
-    pedal_keep_current: data[9],
+    pedal_assist_level: data[1],
+    pedal_speed_limit: data[2],
+    pedal_start_current: data[3],
+    pedal_slow_start_mode: data[4],
+    pedal_signals_before_start: data[5],
+    pedal_work_mode: data[6],
+    pedal_time_to_stop: data[7] * 10,
+    pedal_current_decay: data[8],
+    pedal_stop_decay: data[9] * 10,
+    pedal_keep_current: data[10],
   };
 }
 
 export function encodePedal(p: BafangPedalParameters): number[] {
   return [
     p.pedal_type,
+    p.pedal_assist_level,
     p.pedal_speed_limit,
     p.pedal_start_current,
     p.pedal_slow_start_mode,
     p.pedal_signals_before_start,
-    (p.pedal_time_to_stop >> 8) & 0xff,
-    p.pedal_time_to_stop & 0xff,
+    p.pedal_work_mode,
+    Math.round(p.pedal_time_to_stop / 10),
     p.pedal_current_decay,
-    p.pedal_stop_decay,
+    Math.round(p.pedal_stop_decay / 10),
     p.pedal_keep_current,
-    0,
   ];
 }
 
+// ─── Throttle (0x54, 6 bytes) ────────────────────────────────────────────────
+// [0] start voltage * 10, [1] end voltage * 10, [2] mode,
+// [3] designated assist level, [4] speed limit, [5] start current %
+
 export function parseThrottle(data: number[]): BafangThrottleParameters {
   return {
-    throttle_start_voltage: (data[0] << 8) | data[1],
-    throttle_end_voltage: (data[2] << 8) | data[3],
-    throttle_mode: (data[4] & 0x0f) as ThrottleMode,
-    throttle_assist_level: (data[4] >> 4) & 0x0f,
-    throttle_speed_limit: data[5] & 0x0f,
-    throttle_start_current: (data[5] >> 4) & 0x0f,
+    throttle_start_voltage: data[0] / 10,
+    throttle_end_voltage: data[1] / 10,
+    throttle_mode: data[2] as ThrottleMode,
+    throttle_assist_level: data[3],
+    throttle_speed_limit: data[4],
+    throttle_start_current: data[5],
   };
 }
 
 export function encodeThrottle(p: BafangThrottleParameters): number[] {
   return [
-    (p.throttle_start_voltage >> 8) & 0xff,
-    p.throttle_start_voltage & 0xff,
-    (p.throttle_end_voltage >> 8) & 0xff,
-    p.throttle_end_voltage & 0xff,
-    (p.throttle_mode & 0x0f) | ((p.throttle_assist_level & 0x0f) << 4),
-    (p.throttle_speed_limit & 0x0f) | ((p.throttle_start_current & 0x0f) << 4),
+    Math.round(p.throttle_start_voltage * 10),
+    Math.round(p.throttle_end_voltage * 10),
+    p.throttle_mode,
+    p.throttle_assist_level,
+    p.throttle_speed_limit,
+    p.throttle_start_current,
   ];
 }
+
+// ─── Torque (0x55 read / 0x56 write, 71 bytes) ───────────────────────────────
+// Not applicable to BBS01/02/HD (no torque sensor); retained for torque-sensor
+// motors. Byte order NOT validated on hardware.
 
 function hl(hi: number, lo: number): number { return (hi << 8) | lo; }
 
 export function parseTorque(data: number[]): BafangTorqueParameters {
-  // Layout confirmed from karlsspecialsauceludicrous.el: 23 bytes + 6×8 bytes = 71 bytes
   const profile = (offset: number): TorqueSpeedProfile => ({
     start_kg:        data[offset],
     full_kg:         data[offset + 1],

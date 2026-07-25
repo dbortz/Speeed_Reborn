@@ -48,7 +48,6 @@ export function parseElFile(content: string): ElFileData {
     result.basic = {
       low_battery_protection: int(b['LBP']),
       current_limit:          int(b['LC']),
-      assist_levels:          int(b['AL'], 5),
       wheel_diameter:         int(b['WD']),
       speedmeter_type:        int(b['SMS']) as any,
       speedmeter_magnets:     int(b['SMM'], 1),
@@ -128,7 +127,6 @@ export function serializeAllToEl(params: {
     lines.push('[Basic]');
     lines.push(`LBP=${b.low_battery_protection}`);
     lines.push(`LC=${b.current_limit}`);
-    lines.push(`AL=${b.assist_levels}`);
     for (let i = 0; i < 10; i++) lines.push(`ALC${i}=${b.assist_profiles[i]?.current_limit ?? 0}`);
     for (let i = 0; i < 10; i++) lines.push(`ALBP${i}=${b.assist_profiles[i]?.speed_limit ?? 0}`);
     lines.push(`WD=${b.wheel_diameter}`);

@@ -5,7 +5,10 @@ import {
 } from '@ionic/react';
 import { useState, useEffect } from 'react';
 import { useMotorStore } from '../store/motorStore';
-import { BafangPedalParameters, PedalType, SpeedLimitByDisplay, DEFAULT_PEDAL } from '../types/BafangTypes';
+import {
+  BafangPedalParameters, PedalType, SpeedLimitByDisplay,
+  AssistLevelByDisplay, DEFAULT_PEDAL,
+} from '../types/BafangTypes';
 import ParameterRow from '../components/ParameterRow';
 import SettingsInnerTabs from '../components/SettingsInnerTabs';
 import ReadWriteBar from '../components/ReadWriteBar';
@@ -46,11 +49,21 @@ const PedalPage: React.FC = () => {
             </IonSelect>
           </IonItem>
           <IonItem lines="full" style={SELECT_STYLE}>
+            <IonLabel style={{ color: 'var(--bafang-text-muted)' }}>Designated Assist Level</IonLabel>
+            <IonSelect slot="end" value={local.pedal_assist_level} style={{ color: 'var(--bafang-text)' }}
+              onIonChange={(e) => set('pedal_assist_level', e.detail.value)}>
+              <IonSelectOption value={AssistLevelByDisplay}>By Display</IonSelectOption>
+              {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((v) => (
+                <IonSelectOption key={v} value={v}>Level {v}</IonSelectOption>
+              ))}
+            </IonSelect>
+          </IonItem>
+          <IonItem lines="full" style={SELECT_STYLE}>
             <IonLabel style={{ color: 'var(--bafang-text-muted)' }}>Speed Limit</IonLabel>
             <IonSelect slot="end" value={local.pedal_speed_limit} style={{ color: 'var(--bafang-text)' }}
               onIonChange={(e) => set('pedal_speed_limit', e.detail.value)}>
               <IonSelectOption value={SpeedLimitByDisplay}>By Display</IonSelectOption>
-              {[15, 20, 25, 30, 35, 40, 45].map((v) => (
+              {[15, 16, 20, 24, 25, 30, 32, 35, 40, 45].map((v) => (
                 <IonSelectOption key={v} value={v}>{v} km/h</IonSelectOption>
               ))}
             </IonSelect>
@@ -79,8 +92,8 @@ const PedalPage: React.FC = () => {
           </IonItem>
           <ParameterRow label="Current Decay" value={local.pedal_current_decay}
             min={1} max={8} onChange={(v) => set('pedal_current_decay', v)} />
-          <ParameterRow label="Stop Decay" unit="ms×10" value={local.pedal_stop_decay}
-            min={0} max={255} onChange={(v) => set('pedal_stop_decay', v)} />
+          <ParameterRow label="Stop Decay" unit="ms" value={local.pedal_stop_decay}
+            min={0} max={2550} onChange={(v) => set('pedal_stop_decay', v)} />
           <ParameterRow label="Keep Current" unit="%" value={local.pedal_keep_current}
             min={0} max={100} onChange={(v) => set('pedal_keep_current', v)} />
         </IonList>

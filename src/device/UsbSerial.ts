@@ -16,11 +16,15 @@
  *     UTF-8 strings in the Android layer, which corrupts binary bytes > 0x7F
  *
  * Bafang UART protocol: 1200 bps, 8N1.
- * Frame format (response): 0x06 [blockCode] [length] [...data] [checksum]
- * The checksum is NOT verified here — BafangProtocol.ts owns that logic.
+ * Response frame (VERIFIED on real BBS02B): [blockCode] [length] [...data]
+ * [checksum] — no leading 0x06. Write ack: [blockCode] [length]
+ * [(blockCode+length)&0xff]. Frame extraction + checksum validation live in
+ * BafangProtocol.ts (pure, unit-tested); this module owns buffering and the
+ * pending-promise machinery.
  */
 
 import { Serial } from '@adeunis/capacitor-serial';
+import { extractResponseFrame, extractWriteAck } from './BafangProtocol';
 
 // ─── Public types ────────────────────────────────────────────────────────────
 
@@ -41,67 +45,35 @@ let _connected = false;
 /** Accumulates raw bytes arriving from the USB serial stream. */
 let _receiveBuffer: number[] = [];
 
-/** Resolves/rejects the pending sendAndReceive call. */
+/** Resolves/rejects the pending sendAndReceive / sendAndAwaitAck call. */
 let _pendingResolve: ((data: number[]) => void) | null = null;
 let _pendingReject: ((err: Error) => void) | null = null;
 let _pendingBlockCode: number | null = null;
 let _pendingDataLength: number | null = null;
+let _pendingMode: 'read' | 'ack' = 'read';
 let _pendingTimeoutHandle: ReturnType<typeof setTimeout> | null = null;
 
 // ─── Frame parser ─────────────────────────────────────────────────────────────
 
 /**
- * Called each time new bytes arrive (may be called multiple times per frame).
- * Attempts to parse a complete Bafang response frame from _receiveBuffer.
- *
- * Response frame layout:
- *   [0]        0x06  — ACK byte
- *   [1]        blockCode
- *   [2]        length (number of data bytes that follow)
- *   [3..3+len-1] data bytes
- *   [3+len]    checksum (XOR of data bytes — verified by BafangProtocol.ts, not here)
+ * Called each time new bytes arrive (often one byte at a time at 1200 baud).
+ * Delegates frame recognition + checksum validation to BafangProtocol.
  */
 function _tryParseResponse(): void {
   if (_pendingResolve === null) return; // no one waiting
+  if (_pendingBlockCode === null || _pendingDataLength === null) return;
 
-  // Discard leading bytes that are not 0x06
-  while (_receiveBuffer.length > 0 && _receiveBuffer[0] !== 0x06) {
-    _receiveBuffer.shift();
-  }
+  const frame =
+    _pendingMode === 'ack'
+      ? extractWriteAck(_receiveBuffer, _pendingBlockCode, _pendingDataLength)
+      : extractResponseFrame(_receiveBuffer, _pendingBlockCode, _pendingDataLength);
+  if (frame === null) return; // incomplete or not yet present — wait for more
 
-  if (_receiveBuffer.length < 3) return; // need at least header + blockCode + length
+  _receiveBuffer = _receiveBuffer.slice(frame.consumed);
 
-  // Check block code
-  if (_receiveBuffer[1] !== _pendingBlockCode) {
-    // Wrong block code — discard the 0x06 byte and retry on next data arrival
-    // (could be a stale frame from a previous command)
-    _receiveBuffer.shift();
-    return;
-  }
-
-  const length = _receiveBuffer[2];
-
-  // Validate declared length against expected length from caller
-  if (_pendingDataLength !== null && length !== _pendingDataLength) {
-    // Unexpected length — discard this frame header and keep trying
-    _receiveBuffer.shift();
-    return;
-  }
-
-  // Full frame = 1 (ACK) + 1 (block) + 1 (len) + length (data) + 1 (checksum)
-  const frameSize = 3 + length + 1;
-  if (_receiveBuffer.length < frameSize) return; // frame incomplete, wait for more data
-
-  // Extract data bytes (checksum verification is the caller's responsibility)
-  const data = _receiveBuffer.slice(3, 3 + length);
-
-  // Advance buffer past this frame
-  _receiveBuffer = _receiveBuffer.slice(frameSize);
-
-  // Resolve the pending promise
   const resolve = _pendingResolve;
   _clearPending();
-  resolve(data);
+  resolve(frame.data);
 }
 
 function _clearPending(): void {
@@ -113,6 +85,7 @@ function _clearPending(): void {
   _pendingReject = null;
   _pendingBlockCode = null;
   _pendingDataLength = null;
+  _pendingMode = 'read';
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -236,11 +209,47 @@ export async function sendAndReceive(
   // leftover data belonging to a different request.
   _receiveBuffer = [];
 
+  return _sendAndAwait(command, blockCode, dataLength, 'read', timeoutMs);
+}
+
+/**
+ * Send a Bafang write command (0x16 ...) and wait for the controller's 3-byte
+ * ack ([block] [len] [(block+len)&0xff]). Resolves on ack; rejects on timeout
+ * so callers can surface real write failures instead of assuming success.
+ *
+ * @param command     Full write frame (from buildWriteCommand)
+ * @param blockCode   Block code being written (e.g. 0x53)
+ * @param dataLength  Payload length of the write (e.g. 11 for pedal)
+ */
+export async function sendAndAwaitAck(
+  command: Uint8Array,
+  blockCode: number,
+  dataLength: number,
+  timeoutMs = 3000
+): Promise<void> {
+  if (!_connected) {
+    throw new Error('Not connected — call connect() first');
+  }
+  if (_pendingResolve !== null) {
+    throw new Error('A serial exchange is already in progress');
+  }
+  _receiveBuffer = [];
+  await _sendAndAwait(command, blockCode, dataLength, 'ack', timeoutMs);
+}
+
+function _sendAndAwait(
+  command: Uint8Array,
+  blockCode: number,
+  dataLength: number,
+  mode: 'read' | 'ack',
+  timeoutMs: number
+): Promise<number[]> {
   return new Promise<number[]>((resolve, reject) => {
     _pendingResolve = resolve;
     _pendingReject = reject;
     _pendingBlockCode = blockCode;
     _pendingDataLength = dataLength;
+    _pendingMode = mode;
 
     // Arm timeout
     _pendingTimeoutHandle = setTimeout(() => {
@@ -248,7 +257,7 @@ export async function sendAndReceive(
       _clearPending();
       rej?.(
         new Error(
-          `Timeout waiting for Bafang response (blockCode=0x${blockCode
+          `Timeout waiting for Bafang ${mode === 'ack' ? 'write ack' : 'response'} (blockCode=0x${blockCode
             .toString(16)
             .padStart(2, '0')}, expected ${dataLength} bytes)`
         )
@@ -256,7 +265,7 @@ export async function sendAndReceive(
     }, timeoutMs);
 
     // Convert command bytes to uppercase hex string for writeHexadecimal()
-    // e.g. Uint8Array [0x11, 0x52, 0x00] → "115200"
+    // e.g. Uint8Array [0x11, 0x52] → "1152"
     const hex = Array.from(command)
       .map((b) => b.toString(16).padStart(2, '0').toUpperCase())
       .join('');
@@ -270,8 +279,8 @@ export async function sendAndReceive(
 }
 
 /**
- * Send a Bafang write command without waiting for a response.
- * Used for write commands (0x16) where only an ACK matters or can be ignored.
+ * Send a Bafang command without waiting for any response. Only used for
+ * fire-and-forget situations; parameter writes should use sendAndAwaitAck.
  *
  * @param command  Raw bytes to transmit
  */

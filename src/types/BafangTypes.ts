@@ -17,6 +17,10 @@ export enum ThrottleMode {
 }
 
 export const SpeedLimitByDisplay = 0xff;
+export const AssistLevelByDisplay = 0xff;
+
+/** data[14] of the info block indexes into this table */
+export const VOLTAGE_TABLE = [24, 36, 48, 43] as const;
 
 export interface AssistProfile {
   current_limit: number;  // 0-100 %
@@ -24,45 +28,47 @@ export interface AssistProfile {
 }
 
 export interface BafangMotorInfo {
-  serial_number: string;
+  serial_number: string;   // not available via the 0x51 info block
   model: string;
   manufacturer: string;
   system_code: string;
   firmware_version: string;
   hardware_version: string;
-  voltage: string;
-  max_current: string;
+  voltage: number;         // V (from VOLTAGE_TABLE)
+  max_current: number;     // A
 }
 
 export interface BafangBasicParameters {
-  low_battery_protection: number;
-  current_limit: number;
-  assist_levels: number;
-  wheel_diameter: number;
-  speedmeter_type: SpeedmeterType;
-  speedmeter_magnets: number;
-  assist_profiles: AssistProfile[];
+  low_battery_protection: number;  // V (raw byte)
+  current_limit: number;           // A (raw byte)
+  wheel_diameter: number;          // inches; raw byte = inches * 2 (27.5 is valid)
+  speedmeter_type: SpeedmeterType; // byte 23 bits 7-6
+  speedmeter_magnets: number;      // byte 23 bits 5-0
+  assist_profiles: AssistProfile[]; // exactly 10 entries
 }
 
 export interface BafangPedalParameters {
   pedal_type: PedalType;
-  pedal_speed_limit: number;
-  pedal_start_current: number;
-  pedal_slow_start_mode: number;
+  pedal_assist_level: number;      // 0-9 or 0xff (by display)
+  pedal_speed_limit: number;       // km/h or 0xff (by display)
+  pedal_start_current: number;     // %
+  pedal_slow_start_mode: number;   // 1-8
   pedal_signals_before_start: number;
-  pedal_time_to_stop: number;
+  pedal_work_mode: number;         // raw byte 6 — NOT user-editable; preserved
+                                   // from the last read (0xff = undetermined)
+  pedal_time_to_stop: number;      // ms; raw byte = ms / 10
   pedal_current_decay: number;
-  pedal_stop_decay: number;
-  pedal_keep_current: number;
+  pedal_stop_decay: number;        // ms; raw byte = ms / 10
+  pedal_keep_current: number;      // %
 }
 
 export interface BafangThrottleParameters {
-  throttle_start_voltage: number;
-  throttle_end_voltage: number;
+  throttle_start_voltage: number;  // V; raw byte = V * 10
+  throttle_end_voltage: number;    // V; raw byte = V * 10
   throttle_mode: ThrottleMode;
-  throttle_assist_level: number;
-  throttle_speed_limit: number;
-  throttle_start_current: number;
+  throttle_assist_level: number;   // 0-9 or 0xff (by display)
+  throttle_speed_limit: number;    // km/h or 0xff (by display)
+  throttle_start_current: number;  // %
 }
 
 export interface TorqueSpeedProfile {
@@ -78,8 +84,8 @@ export interface TorqueSpeedProfile {
 
 // Layout confirmed from karlsspecialsauceludicrous.el save file:
 // 23 bytes calibration + 6×8 bytes speed profiles = 71 bytes exactly.
-// No "About Tq" section in this block (those params may be read-only or separate block).
-// TODO: Validate byte order by serial port capture with real motor.
+// NOTE: torque blocks do not exist on BBS01/02/HD — this is for torque-sensor
+// motors (e.g. G510) only, and its byte order is still unvalidated on hardware.
 export interface BafangTorqueParameters {
   base_voltage: number;       // BV — bytes 0-1 H+L
   error_voltage_min: number;  // EV0 — bytes 2-3
@@ -98,37 +104,39 @@ export interface BafangTorqueParameters {
 
 export const SPEED_PROFILE_LABELS = ['Spd0', 'Spd20', 'Spd40', 'Spd60', 'Spd80', 'Spd100'] as const;
 
+// Defaults mirror the factory backup of a 48V/750W BBS02B (HZXT SZZ9)
 export const DEFAULT_BASIC: BafangBasicParameters = {
-  low_battery_protection: 300,
-  current_limit: 15,
-  assist_levels: 5,
-  wheel_diameter: 26,
+  low_battery_protection: 41,
+  current_limit: 25,
+  wheel_diameter: 27.5,
   speedmeter_type: SpeedmeterType.External,
   speedmeter_magnets: 1,
   assist_profiles: Array.from({ length: 10 }, (_, i) => ({
-    current_limit: Math.round((i + 1) * 10),
-    speed_limit: Math.round((i + 1) * 10),
+    current_limit: i === 0 ? 1 : Math.round(i * 10 + 10),
+    speed_limit: 100,
   })),
 };
 
 export const DEFAULT_PEDAL: BafangPedalParameters = {
-  pedal_type: PedalType.BBSensor32,
+  pedal_type: PedalType.DoubleSignal24,
+  pedal_assist_level: AssistLevelByDisplay,
   pedal_speed_limit: SpeedLimitByDisplay,
-  pedal_start_current: 10,
-  pedal_slow_start_mode: 3,
+  pedal_start_current: 20,
+  pedal_slow_start_mode: 4,
   pedal_signals_before_start: 4,
-  pedal_time_to_stop: 250,
-  pedal_current_decay: 4,
+  pedal_work_mode: 0xff,
+  pedal_time_to_stop: 100,
+  pedal_current_decay: 8,
   pedal_stop_decay: 0,
-  pedal_keep_current: 30,
+  pedal_keep_current: 80,
 };
 
 export const DEFAULT_THROTTLE: BafangThrottleParameters = {
-  throttle_start_voltage: 1100,
-  throttle_end_voltage: 4200,
+  throttle_start_voltage: 1.1,
+  throttle_end_voltage: 3.5,
   throttle_mode: ThrottleMode.Speed,
-  throttle_assist_level: 0xff,
-  throttle_speed_limit: 25,
+  throttle_assist_level: AssistLevelByDisplay,
+  throttle_speed_limit: 40,
   throttle_start_current: 10,
 };
 

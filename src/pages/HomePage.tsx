@@ -3,13 +3,15 @@ import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent,
   IonButtons, IonButton, IonIcon, IonItem, IonLabel,
   IonList, IonCheckbox, IonText, IonSelect,
-  IonSelectOption,
+  IonSelectOption, IonInput, useIonAlert,
 } from '@ionic/react';
 import {
   folderOpenOutline, downloadOutline, refreshOutline,
+  saveOutline, arrowUpCircleOutline, trashOutline,
 } from 'ionicons/icons';
 import { useState, useEffect, useRef } from 'react';
 import { useMotorStore } from '../store/motorStore';
+import { useProfileStore } from '../store/profileStore';
 import { listDevices, UsbDevice } from '../device/UsbSerial';
 import { parseElFile, serializeAllToEl } from '../device/ElFileParser';
 
@@ -21,14 +23,86 @@ const HomePage: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
-    connected, connecting, error,
+    connected, connecting, error, notice,
     connectDevice, disconnectDevice,
     info,
     basic, pedal, throttle, torque,
     loadFromFile,
     readAll,
     writeBasic, writePedal, writeThrottle, writeTorque,
+    setNotice, setError,
   } = useMotorStore();
+
+  const {
+    profiles, refresh: refreshProfiles,
+    save: saveProfile, load: loadProfile, remove: removeProfile,
+  } = useProfileStore();
+  const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
+  const [newProfileName, setNewProfileName] = useState('');
+  const [presentAlert] = useIonAlert();
+
+  useEffect(() => { refreshProfiles(); }, [refreshProfiles]);
+
+  const handleSaveProfile = async () => {
+    if (!basic || !pedal || !throttle) {
+      setError('Read the motor (or load a profile) before saving one');
+      return;
+    }
+    const name = newProfileName.trim();
+    if (!name) {
+      setError('Enter a profile name first');
+      return;
+    }
+    try {
+      await saveProfile(name, info, basic, pedal, throttle);
+      setNewProfileName('');
+      setNotice(`Profile "${name}" saved`);
+      setError(null);
+    } catch (e: any) {
+      setError(`Failed to save profile: ${e.message}`);
+    }
+  };
+
+  const handleLoadProfile = async () => {
+    if (!selectedProfile) {
+      setError('Select a profile first');
+      return;
+    }
+    try {
+      const data = await loadProfile(selectedProfile);
+      loadFromFile(data);
+      setNotice(
+        'Profile loaded into the form — review the tabs, then WRITE ALL to apply to the motor'
+      );
+      setError(null);
+    } catch (e: any) {
+      setError(`Failed to load profile: ${e.message}`);
+    }
+  };
+
+  const handleDeleteProfile = () => {
+    if (!selectedProfile) {
+      setError('Select a profile first');
+      return;
+    }
+    presentAlert({
+      header: 'Delete profile',
+      message: 'Delete this saved profile? The motor is not affected.',
+      buttons: [
+        { text: 'Cancel', role: 'cancel' },
+        {
+          text: 'Delete',
+          role: 'destructive',
+          handler: () => {
+            removeProfile(selectedProfile).then(() => {
+              setSelectedProfile(null);
+              setNotice('Profile deleted');
+            });
+          },
+        },
+      ],
+    });
+  };
 
   const refreshDevices = async () => {
     try {
@@ -120,6 +194,11 @@ const HomePage: React.FC = () => {
             <p style={{ padding: '8px 16px', fontSize: '13px' }}>{error}</p>
           </IonText>
         )}
+        {notice && (
+          <IonText color="success">
+            <p style={{ padding: '8px 16px', fontSize: '13px' }}>{notice}</p>
+          </IonText>
+        )}
 
         {/* Connection section */}
         <div className="section-label">Connection</div>
@@ -186,6 +265,56 @@ const HomePage: React.FC = () => {
         >
           {connecting ? '···' : connected ? 'DISCONNECT' : 'CONNECT'}
         </button>
+
+        {/* Profiles section */}
+        <div className="section-label">Profiles</div>
+        <IonItem
+          lines="full"
+          style={{ '--background': 'transparent', '--border-color': 'var(--bafang-border)' }}
+        >
+          <IonLabel style={{ color: 'var(--bafang-text-muted)' }}>Profile</IonLabel>
+          <IonSelect
+            slot="end"
+            value={selectedProfile}
+            placeholder="Select"
+            onIonChange={(e) => setSelectedProfile(e.detail.value)}
+            style={{ color: 'var(--bafang-text)' }}
+          >
+            {profiles.map((p) => (
+              <IonSelectOption key={p.slug} value={p.slug}>
+                {p.name}
+              </IonSelectOption>
+            ))}
+          </IonSelect>
+        </IonItem>
+        <div style={{ display: 'flex', gap: '8px', padding: '8px 16px' }}>
+          <IonButton size="small" fill="outline" onClick={handleLoadProfile}>
+            <IonIcon slot="start" icon={arrowUpCircleOutline} />
+            Load into form
+          </IonButton>
+          <IonButton size="small" fill="outline" color="danger" onClick={handleDeleteProfile}>
+            <IonIcon slot="icon-only" icon={trashOutline} />
+          </IonButton>
+        </div>
+        <IonItem
+          lines="full"
+          style={{ '--background': 'transparent', '--border-color': 'var(--bafang-border)' }}
+        >
+          <IonInput
+            placeholder="New profile name"
+            value={newProfileName}
+            onIonChange={(e) => setNewProfileName(String(e.detail.value ?? ''))}
+            style={{ color: 'var(--bafang-text)', fontSize: '14px' }}
+          />
+          <IonButton slot="end" size="small" fill="outline" onClick={handleSaveProfile}>
+            <IonIcon slot="start" icon={saveOutline} />
+            Save
+          </IonButton>
+        </IonItem>
+        <p style={{ padding: '4px 16px 8px', fontSize: '12px', color: 'var(--bafang-text-muted)' }}>
+          Loading a profile only fills the form — nothing is written to the
+          motor until you press WRITE ALL.
+        </p>
 
         {/* Motor section */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 16px 0' }}>

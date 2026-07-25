@@ -5,7 +5,7 @@ interface Props {
   title: string;
   connected: boolean;
   onRead: () => void;
-  onWrite: () => Promise<void>;
+  onWrite: () => Promise<unknown>;
 }
 
 const ReadWriteBar: React.FC<Props> = ({ title, connected, onRead, onWrite }) => {
